@@ -30,7 +30,7 @@ jobs:
         run: flutter pub get
 
       - name: Uygulama Simgelerini Oluştur
-        run: dart run flutter_launcher_icons
+        run: dart run flutter_launcher_icons || true
 
       - name: Release APK Derle
         run: flutter build apk --release --no-tree-shake-icons
