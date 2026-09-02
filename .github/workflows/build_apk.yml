@@ -1,4 +1,4 @@
-name: NetSync APK Derleyici (CI/CD)
+name: NetSync APK & AAB Derleyici (CI/CD)
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -35,8 +35,17 @@ jobs:
       - name: Release APK Derle
         run: flutter build apk --release --no-tree-shake-icons
 
+      - name: Release AAB Derle
+        run: flutter build appbundle --release --no-tree-shake-icons
+
       - name: APK Dosyasını İndirilebilir Çıktı (Artifact) Olarak Kaydet
         uses: actions/upload-artifact@v4
         with:
           name: netsync-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: AAB Dosyasını İndirilebilir Çıktı (Artifact) Olarak Kaydet
+        uses: actions/upload-artifact@v4
+        with:
+          name: netsync-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab

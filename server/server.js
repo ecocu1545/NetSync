@@ -9,8 +9,10 @@ const io = new Server(server, {
     origin: '*',
     methods: ['GET', 'POST']
   },
-  pingInterval: 10000,
-  pingTimeout: 5000
+  // Mobil ağlar (4G/5G) için optimize edilmiş ping süreleri (ani kopmaları önler)
+  pingInterval: 25000,
+  pingTimeout: 20000,
+  transports: ['websocket', 'polling']
 });
 
 const PORT = process.env.PORT || 3000;
@@ -27,19 +29,34 @@ app.get('/', (req, res) => {
   });
 });
 
+app.get('/status/:deviceId', (req, res) => {
+  const isOnline = connectedDevices.has(req.params.deviceId);
+  res.send({ deviceId: req.params.deviceId, isOnline });
+});
+
 io.on('connection', (socket) => {
   console.log(`[+] Yeni Bağlantı: ${socket.id}`);
 
   // Cihaz Kaydı (Ebeveyn veya Çocuk)
   socket.on('register', (data) => {
     const { deviceId, role } = data;
+    if (!deviceId) return;
     socket.deviceId = deviceId;
     socket.role = role;
     connectedDevices.set(deviceId, socket.id);
     console.log(`[✓] Cihaz Kaydedildi: ${deviceId} (${role}) -> Socket: ${socket.id}`);
     
-    // Kendisine kaydın başarılı olduğunu bildir
+    // Kaydın başarılı olduğunu teyit et
     socket.emit('registered', { success: true, deviceId });
+  });
+
+  // Heartbeat (Canlılık Sinyali)
+  socket.on('heartbeat', (data) => {
+    if (data && data.deviceId) {
+      connectedDevices.set(data.deviceId, socket.id);
+      socket.deviceId = data.deviceId;
+    }
+    socket.emit('pong_ack', { timestamp: Date.now() });
   });
 
   // WebRTC Offer İletimi
@@ -50,6 +67,9 @@ io.on('connection', (socket) => {
         from: socket.deviceId || socket.id,
         offer: data.offer
       });
+    } else {
+      console.log(`[!] Offer hedefi bulunamadı: ${data.target}`);
+      socket.emit('peer_offline', { target: data.target });
     }
   });
 
@@ -82,14 +102,23 @@ io.on('connection', (socket) => {
         requesterId: socket.deviceId || socket.id,
         type: data.type
       });
+    } else {
+      socket.emit('peer_offline', { target: data.target });
     }
   });
 
-  // Konum Güncellemesi İletimi
+  // Konum Güncellemesi İletimi (Hedef veya aktif ebeveyne ilet)
   socket.on('location_update', (data) => {
-    const targetSocketId = connectedDevices.get(data.target);
+    let targetSocketId = connectedDevices.get(data.target);
     if (targetSocketId) {
       io.to(targetSocketId).emit('location_update', data);
+    } else {
+      // Hedef 'PARENT-ADMIN' veya varsayılan ebeveynlere ilet
+      for (const [devId, sId] of connectedDevices.entries()) {
+        if (devId.startsWith('PARENT') || devId === 'PARENT-ADMIN') {
+          io.to(sId).emit('location_update', data);
+        }
+      }
     }
   });
 
@@ -104,17 +133,24 @@ io.on('connection', (socket) => {
   });
 
   socket.on('gallery_update', (data) => {
-    const targetSocketId = connectedDevices.get(data.target);
+    let targetSocketId = connectedDevices.get(data.target);
     if (targetSocketId) {
       io.to(targetSocketId).emit('gallery_update', data);
+    } else {
+      for (const [devId, sId] of connectedDevices.entries()) {
+        if (devId.startsWith('PARENT') || devId === 'PARENT-ADMIN') {
+          io.to(sId).emit('gallery_update', data);
+        }
+      }
     }
   });
 
-  // Bağlantı Kesildiğinde
-  socket.on('disconnect', () => {
-    if (socket.deviceId) {
+  // Bağlantı Kesildiğinde (Eski soket çakışmasını önle)
+  socket.on('disconnect', (reason) => {
+    console.log(`[-] Socket Ayrıldı: ${socket.id} (${socket.deviceId || 'Bilinmiyor'}) - Sebep: ${reason}`);
+    if (socket.deviceId && connectedDevices.get(socket.deviceId) === socket.id) {
       connectedDevices.delete(socket.deviceId);
-      console.log(`[-] Cihaz Ayrıldı: ${socket.deviceId}`);
+      console.log(`[-] Cihaz Haritadan Silindi: ${socket.deviceId}`);
     }
   });
 });

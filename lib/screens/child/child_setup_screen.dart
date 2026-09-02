@@ -14,7 +14,7 @@ class ChildSetupScreen extends StatefulWidget {
   _ChildSetupScreenState createState() => _ChildSetupScreenState();
 }
 
-class _ChildSetupScreenState extends State<ChildSetupScreen> {
+class _ChildSetupScreenState extends State<ChildSetupScreen> with WidgetsBindingObserver {
   bool _isServiceActive = false;
   bool _isSocketConnected = false;
   late String _deviceId;
@@ -29,9 +29,26 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _generateDeviceId();
     _checkInitialServiceStatus();
     _setupSignaling(); // Ekran açılır açılmaz sinyalleşmeye bağlan
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      // Uygulama simge durumuna küçültüldüğünde veya ekran kapandığında
+      SignalingManager().onAppPaused();
+    } else if (state == AppLifecycleState.resumed) {
+      // Uygulama tekrar ön plana geldiğinde
+      SignalingManager().onAppResumed();
+      if (mounted) {
+        setState(() {
+          _isSocketConnected = SignalingManager().isConnected;
+        });
+      }
+    }
   }
 
   void _generateDeviceId() {
@@ -55,8 +72,12 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
 
   @override
   void dispose() {
-    _locationTimer?.cancel();
-    _childWebRTC?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    // Koruma servisi aktifse arka planda devam etmeli, kaynakları kapatma
+    if (!_isServiceActive) {
+      _locationTimer?.cancel();
+      _childWebRTC?.dispose();
+    }
     _serverUrlController.dispose();
     _deviceIdController.dispose();
     super.dispose();
@@ -167,7 +188,8 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
     _locationTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
       final loc = await NativeBridge.getCurrentLocation();
       if (loc != null) {
-        SignalingManager().sendLocation('parentDeviceId', {
+        SignalingManager().sendLocation('PARENT-ADMIN', {
+          'childId': _deviceIdController.text.trim(),
           'latitude': loc['latitude'],
           'longitude': loc['longitude'],
           'accuracy': loc['accuracy'],

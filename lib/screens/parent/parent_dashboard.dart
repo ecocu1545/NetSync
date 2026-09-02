@@ -11,7 +11,7 @@ class ParentDashboard extends StatefulWidget {
   _ParentDashboardState createState() => _ParentDashboardState();
 }
 
-class _ParentDashboardState extends State<ParentDashboard> {
+class _ParentDashboardState extends State<ParentDashboard> with WidgetsBindingObserver {
   final TextEditingController _targetIdController = TextEditingController(text: "NET-8821");
   final TextEditingController _serverUrlController = TextEditingController(text: "https://netsync-k68k.onrender.com");
   bool _isConnected = false;
@@ -19,7 +19,22 @@ class _ParentDashboardState extends State<ParentDashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _connectSignaling();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      SignalingManager().onAppPaused();
+    } else if (state == AppLifecycleState.resumed) {
+      SignalingManager().onAppResumed();
+      if (mounted) {
+        setState(() {
+          _isConnected = SignalingManager().isConnected;
+        });
+      }
+    }
   }
 
   void _connectSignaling() {
@@ -71,6 +86,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _targetIdController.dispose();
     _serverUrlController.dispose();
     super.dispose();
