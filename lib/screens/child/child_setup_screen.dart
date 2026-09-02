@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/method_channels.dart';
 import '../../core/signaling_manager.dart';
 import '../../core/webrtc_manager.dart';
@@ -13,9 +17,11 @@ class ChildSetupScreen extends StatefulWidget {
 class _ChildSetupScreenState extends State<ChildSetupScreen> {
   bool _isServiceActive = false;
   bool _isSocketConnected = false;
-  String _deviceId = "NET-8821";
-  final TextEditingController _serverUrlController = TextEditingController(text: "http://10.0.2.2:3000");
-  final TextEditingController _deviceIdController = TextEditingController(text: "NET-8821");
+  late String _deviceId;
+  
+  // Varsayılan genel sinyalleşme sunucusu (farklı ağlarda çalışabilmesi için)
+  final TextEditingController _serverUrlController = TextEditingController(text: "https://netsync-relay.glitch.me");
+  final TextEditingController _deviceIdController = TextEditingController();
 
   WebRTCManager? _childWebRTC;
   Timer? _locationTimer;
@@ -23,7 +29,15 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
   @override
   void initState() {
     super.initState();
+    _generateDeviceId();
     _checkInitialServiceStatus();
+  }
+
+  void _generateDeviceId() {
+    final random = Random();
+    final id = "NET-${1000 + random.nextInt(9000)}";
+    _deviceId = id;
+    _deviceIdController.text = id;
   }
 
   Future<void> _checkInitialServiceStatus() async {
@@ -32,6 +46,10 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
       setState(() {
         _isServiceActive = running;
       });
+      if (running) {
+        _setupSignaling();
+        _startLocationTracking();
+      }
     }
   }
 
@@ -44,9 +62,19 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
     super.dispose();
   }
 
+  String _getQrPayload() {
+    final payload = {
+      'app': 'NetSync',
+      'deviceId': _deviceIdController.text.trim(),
+      'server': _serverUrlController.text.trim(),
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+    return jsonEncode(payload);
+  }
+
   Future<void> _requestPermissionsAndStart() async {
-    // 1. İzinleri sırayla talep et
-    Map<Permission, PermissionStatus> statuses = await [
+    // 1. İzinleri talep et
+    await [
       Permission.camera,
       Permission.microphone,
       Permission.location,
@@ -60,12 +88,12 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
     await NativeBridge.requestBatteryOptimization();
 
     // 2. Native Foreground Servisi Başlat
-    final serviceStarted = await NativeBridge.startService();
+    await NativeBridge.startService();
 
     // 3. Socket.IO ve WebRTC Sinyalleşmesini Başlat
     _setupSignaling();
 
-    // 4. GPS Konum Takibini Başlat (Native Android LocationManager üzerinden)
+    // 4. GPS Konum Takibini Başlat
     _startLocationTracking();
 
     if (mounted) {
@@ -76,7 +104,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('NetSync Çocuk Koruma Servisi Başarıyla Devreye Girdi'),
+        content: Text('NetSync Çocuk Koruma Servisi Başarıyla Başlatıldı'),
         backgroundColor: Colors.green,
       ),
     );
@@ -151,9 +179,11 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final qrData = _getQrPayload();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Çocuk Cihazı Kurulumu'),
+        title: const Text('Çocuk Cihazı Kurulumu & QR'),
         backgroundColor: Colors.blue[800],
         foregroundColor: Colors.white,
       ),
@@ -162,57 +192,66 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Durum Kartı
+            // Ebeveyn İçin QR Kod Kartı
             Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              color: _isServiceActive ? Colors.green[50] : Colors.amber[50],
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
-                    Icon(
-                      _isServiceActive ? Icons.verified_user : Icons.gpp_maybe,
-                      size: 70,
-                      color: _isServiceActive ? Colors.green[700] : Colors.amber[800],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _isServiceActive ? 'CİHAZ KORUMA ALTINDA' : 'KORUMA BAŞLATILMADI',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: _isServiceActive ? Colors.green[900] : Colors.amber[900],
-                      ),
+                    const Text(
+                      'Ebeveyn Cihazından Bu QR Kodu Tarayın',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      _isServiceActive
-                          ? 'Arka plan koruma servisi aktif. Sistem yeşil gizlilik göstergeleri standart çalışır.'
-                          : 'Ebeveyn denetimini aktif etmek için aşağıdaki izinleri verin ve servisi başlatın.',
+                    const Text(
+                      'Farklı internet ağlarında (4G/Wi-Fi) olsanız bile otomatik eşleşir.',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
-                    const Divider(height: 24),
+                    const SizedBox(height: 16),
+
+                    // QR Kod Görseli
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.blue[100]!, width: 2),
+                      ),
+                      child: QrImageView(
+                        data: qrData,
+                        version: QrVersions.auto,
+                        size: 200.0,
+                        backgroundColor: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Cihaz Kodu ve Kopyalama
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _isSocketConnected ? Colors.green : Colors.red,
+                        Text(
+                          'Cihaz Kodu: ${_deviceIdController.text}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[900],
+                            letterSpacing: 1.2,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _isSocketConnected ? 'Sunucu Bağlantısı Aktif' : 'Sunucuya Bağlı Değil',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _isSocketConnected ? Colors.green[800] : Colors.red[800],
-                          ),
+                        IconButton(
+                          icon: const Icon(Icons.copy, size: 20),
+                          tooltip: 'Kodu Kopyala',
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: _deviceIdController.text));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Cihaz kodu kopyalandı!')),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -220,62 +259,111 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Cihaz Eşleştirme ve Sunucu Ayarları
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Cihaz Eşleştirme Bilgileri',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            // Durum Göstergesi
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: _isServiceActive ? Colors.green[50] : Colors.amber[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _isServiceActive ? Colors.green[300]! : Colors.amber[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isServiceActive ? Icons.verified_user : Icons.shield_outlined,
+                    color: _isServiceActive ? Colors.green[700] : Colors.amber[800],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _isServiceActive ? 'Koruma ve Yayın Servisi Aktif' : 'Koruma Başlatılmadı',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: _isServiceActive ? Colors.green[900] : Colors.amber[900],
+                          ),
+                        ),
+                        Text(
+                          _isSocketConnected ? 'Sinyalleşme Sunucusu: Bağlı' : 'Sinyalleşme Sunucusu: Bekleniyor',
+                          style: const TextStyle(fontSize: 11, color: Colors.black54),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _deviceIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'Bu Cihazın Kimlik Kodu (Device ID)',
-                        prefixIcon: Icon(Icons.qr_code),
-                        border: OutlineInputBorder(),
-                      ),
+                  ),
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _isSocketConnected ? Colors.green : Colors.red,
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _serverUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Sinyalleşme Sunucusu (IP / URL)',
-                        hintText: 'http://192.168.1.50:3000',
-                        prefixIcon: Icon(Icons.cloud_queue),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // İzinler Listesi Bilgilendirmesi
-            const Text(
-              'Gerekli Standart Android İzinleri:',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            // Sunucu Ayarları (Genişletilebilir)
+            ExpansionTile(
+              title: const Text('Gelişmiş Ağ & Sunucu Ayarları', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _serverUrlController,
+                        decoration: const InputDecoration(
+                          labelText: 'Sinyalleşme Sunucusu URL',
+                          hintText: 'https://netsync-relay.glitch.me veya http://192.168.1.X:3000',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _serverUrlController.text = "https://netsync-relay.glitch.me";
+                                });
+                              },
+                              child: const Text('🌐 İnternet Sunucusu', style: TextStyle(fontSize: 11)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _serverUrlController.text = "http://192.168.1.110:3000";
+                                });
+                              },
+                              child: const Text('🏠 Yerel Wi-Fi IP', style: TextStyle(fontSize: 11)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            _buildPermissionTile(Icons.camera_alt, 'Kamera & Mikrofon', 'Canlı ortam ve güvenlik kontrolü'),
-            _buildPermissionTile(Icons.location_on, 'Konum (Her Zaman)', 'GPS anlık takip (Background Location)'),
-            _buildPermissionTile(Icons.photo_library, 'Medya ve Dosyalar', 'Galeri ve fotoğraf denetimi'),
-            _buildPermissionTile(Icons.battery_charging_full, 'Pil Muafiyeti', 'Kesintisiz arka plan çalışma'),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // Butonlar
+            // Başlatma / Durdurma Butonu
             if (!_isServiceActive)
               ElevatedButton.icon(
                 icon: const Icon(Icons.shield, color: Colors.white),
-                label: const Text('İzinleri Onayla ve Korumayı Başlat', style: TextStyle(fontSize: 16, color: Colors.white)),
+                label: const Text('İzinleri Ver ve Korumayı Başlat', style: TextStyle(fontSize: 16, color: Colors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue[800],
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -297,20 +385,6 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildPermissionTile(IconData icon, String title, String subtitle) {
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        radius: 16,
-        backgroundColor: Colors.blue[50],
-        child: Icon(icon, size: 18, color: Colors.blue[800]),
-      ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11)),
     );
   }
 }

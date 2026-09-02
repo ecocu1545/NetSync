@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/signaling_manager.dart';
+import 'qr_scanner_screen.dart';
 import 'live_camera_screen.dart';
 import 'screen_share_screen.dart';
 import 'location_map_screen.dart';
@@ -12,7 +13,7 @@ class ParentDashboard extends StatefulWidget {
 
 class _ParentDashboardState extends State<ParentDashboard> {
   final TextEditingController _targetIdController = TextEditingController(text: "NET-8821");
-  final TextEditingController _serverUrlController = TextEditingController(text: "http://10.0.2.2:3000");
+  final TextEditingController _serverUrlController = TextEditingController(text: "https://netsync-relay.glitch.me");
   bool _isConnected = false;
 
   @override
@@ -37,6 +38,35 @@ class _ParentDashboardState extends State<ParentDashboard> {
       role: 'parent',
       targetId: _targetIdController.text.trim(),
     );
+  }
+
+  Future<void> _scanQrCode() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => QrScannerScreen()),
+    );
+
+    if (result != null && result is Map) {
+      setState(() {
+        final deviceId = result['deviceId'];
+        final serverUrl = result['serverUrl'];
+        if (deviceId != null) {
+          _targetIdController.text = deviceId;
+        }
+        if (serverUrl != null && serverUrl.toString().isNotEmpty) {
+          _serverUrlController.text = serverUrl;
+        }
+      });
+
+      _connectSignaling();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Eşleşti! Cihaz: ${_targetIdController.text}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
   @override
@@ -71,7 +101,24 @@ class _ParentDashboardState extends State<ParentDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Cihaz Bağlantı Kartı
+            // QR Kod ile Eşleşme Butonu (En Üstte Vurgulu)
+            ElevatedButton.icon(
+              icon: const Icon(Icons.qr_code_scanner, size: 28, color: Colors.white),
+              label: const Text(
+                'Çocuk QR Kodunu Tara & Bağlan',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo[700],
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 4,
+              ),
+              onPressed: _scanQrCode,
+            ),
+            const SizedBox(height: 16),
+
+            // Eşleşen Cihaz Bilgisi Kartı
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -84,8 +131,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Bağlı Çocuk Cihazı',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          'Bağlı Cihaz Bilgisi',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -94,10 +141,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            _isConnected ? 'Çevrimiçi' : 'Çevrimdışı',
+                            _isConnected ? 'Sunucu Çevrimiçi' : 'Sunucu Çevrimdışı',
                             style: TextStyle(
                               color: _isConnected ? Colors.green[900] : Colors.red[900],
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -108,7 +155,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     TextField(
                       controller: _targetIdController,
                       decoration: const InputDecoration(
-                        labelText: 'Çocuk Cihaz ID',
+                        labelText: 'Çocuk Cihaz ID (QR ile Otomatik Dolar)',
                         prefixIcon: Icon(Icons.phone_android),
                         border: OutlineInputBorder(),
                         isDense: true,
@@ -119,12 +166,40 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     TextField(
                       controller: _serverUrlController,
                       decoration: const InputDecoration(
-                        labelText: 'Sunucu Adresi (Socket.IO IP/Port)',
+                        labelText: 'Sinyalleşme Sunucusu URL',
                         prefixIcon: Icon(Icons.dns),
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
                       onSubmitted: (_) => _connectSignaling(),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setState(() {
+                                _serverUrlController.text = "https://netsync-relay.glitch.me";
+                              });
+                              _connectSignaling();
+                            },
+                            child: const Text('🌐 İnternet Sunucusu', style: TextStyle(fontSize: 10)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setState(() {
+                                _serverUrlController.text = "http://192.168.1.110:3000";
+                              });
+                              _connectSignaling();
+                            },
+                            child: const Text('🏠 Yerel Wi-Fi IP', style: TextStyle(fontSize: 10)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

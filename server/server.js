@@ -8,7 +8,9 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingInterval: 10000,
+  pingTimeout: 5000
 });
 
 const PORT = process.env.PORT || 3000;
@@ -18,7 +20,8 @@ const connectedDevices = new Map();
 
 app.get('/', (req, res) => {
   res.send({
-    status: 'NetSync Sinyalleşme Sunucusu Çalışıyor',
+    status: 'NetSync Sinyalleşme Sunucusu Aktif',
+    onlineDevicesCount: connectedDevices.size,
     activeDevices: Array.from(connectedDevices.keys()),
     timestamp: new Date().toISOString()
   });
@@ -34,6 +37,9 @@ io.on('connection', (socket) => {
     socket.role = role;
     connectedDevices.set(deviceId, socket.id);
     console.log(`[✓] Cihaz Kaydedildi: ${deviceId} (${role}) -> Socket: ${socket.id}`);
+    
+    // Kendisine kaydın başarılı olduğunu bildir
+    socket.emit('registered', { success: true, deviceId });
   });
 
   // WebRTC Offer İletimi
@@ -117,6 +123,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`=========================================`);
   console.log(`NetSync Sinyalleşme Sunucusu Başlatıldı!`);
   console.log(`Port: ${PORT}`);
-  console.log(`Tüm yerel ağ arayüzlerinde dinleniyor: 0.0.0.0:${PORT}`);
+  console.log(`Tüm ağ arayüzlerinde dinleniyor: 0.0.0.0:${PORT}`);
   console.log(`=========================================`);
 });
