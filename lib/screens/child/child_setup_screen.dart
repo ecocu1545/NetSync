@@ -73,24 +73,41 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
   }
 
   Future<void> _requestPermissionsAndStart() async {
-    // 1. İzinleri talep et
-    await [
-      Permission.camera,
-      Permission.microphone,
-      Permission.location,
-      Permission.locationAlways,
-      Permission.photos,
-      Permission.storage,
-      Permission.notification,
-    ].request();
+    // 1. Bildirim İzni (Android 13+ Foreground bildirimleri için zorunlu)
+    try {
+      await Permission.notification.request();
+    } catch (_) {}
 
-    // Pil optimizasyonu muafiyeti iste
-    await NativeBridge.requestBatteryOptimization();
+    // 2. Kamera ve Mikrofon İzinleri
+    try {
+      await Permission.camera.request();
+      await Permission.microphone.request();
+    } catch (_) {}
 
-    // 2. Native Foreground Servisi Başlat
-    await NativeBridge.startService();
+    // 3. Konum İzni (Android kuralı: önce normal, sonra arka plan)
+    try {
+      final locStatus = await Permission.location.request();
+      if (locStatus.isGranted) {
+        await Permission.locationAlways.request();
+      }
+    } catch (_) {}
 
-    // 3. Sinyalleşmeyi doğrula ve GPS Konum Takibini Başlat
+    // 4. Fotoğraf ve Medya İzni
+    try {
+      await Permission.photos.request();
+    } catch (_) {}
+
+    // 5. Pil Optimizasyonu Muafiyeti (Kesintisiz arka plan)
+    try {
+      await NativeBridge.requestBatteryOptimization();
+    } catch (_) {}
+
+    // 6. Native Foreground Servisi Güvenle Başlat
+    try {
+      await NativeBridge.startService();
+    } catch (_) {}
+
+    // 7. Sinyalleşme ve GPS Konum Takibini Başlat
     _setupSignaling();
     _startLocationTracking();
 

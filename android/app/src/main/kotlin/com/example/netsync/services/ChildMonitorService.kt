@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -26,32 +27,44 @@ class ChildMonitorService : Service() {
         super.onCreate()
         createNotificationChannel()
 
-        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-        wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NetSync:ServiceWakeLock")
-        wakeLock?.acquire(10 * 60 * 1000L /* 10 minutes timeout */)
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NetSync:ServiceWakeLock")
+            wakeLock?.acquire(60 * 60 * 1000L /* 1 saat */)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         isRunning = true
 
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+        try {
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
 
-        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("NetSync Aile Koruması Aktif")
-            .setContentText("Cihaz ebeveyn denetimi altında güvenle korunuyor.")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .build()
+            val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("NetSync Aile Koruması Aktif")
+                .setContentText("Cihaz ebeveyn denetimi altında güvenle korunuyor.")
+                .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .build()
 
-        startForeground(NOTIFICATION_ID, notification)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         return START_STICKY
     }
@@ -74,15 +87,17 @@ class ChildMonitorService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(
+            val channel = NotificationChannel(
                 CHANNEL_ID,
-                "NetSync Aile Koruma Servisi",
+                "NetSync Arka Plan Koruması",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "NetSync ebeveyn denetimi ve güvenlik durum bildirim kanalı"
+                description = "NetSync çocuk koruma ve izleme servis bildirimi"
+                setShowBadge(false)
             }
+
             val manager = getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(serviceChannel)
+            manager?.createNotificationChannel(channel)
         }
     }
 }

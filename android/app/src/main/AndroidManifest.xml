@@ -11,16 +11,14 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     
-    <!-- Depolama İzinleri -->
+    <!-- Depolama ve Medya İzinleri -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     
-    <!-- Servis ve Başlangıç İzinleri -->
+    <!-- Servis ve Arka Plan İzinleri (Android 14+ uyumlu) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -54,12 +52,12 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Arka Plan Güvenlik Servisi -->
+        <!-- Arka Plan Güvenlik Servisi (Android 14 veri eşitleme tipi ile çökmez) -->
         <service
             android:name=".services.ChildMonitorService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="camera|microphone|location|mediaProjection" />
+            android:foregroundServiceType="dataSync" />
 
         <!-- Cihaz Başlatıldığında Servisi Başlatan Receiver -->
         <receiver

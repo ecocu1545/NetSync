@@ -68,35 +68,51 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun startChildService() {
-        val serviceIntent = Intent(this, ChildMonitorService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, ChildMonitorService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
     private fun stopChildService() {
-        val serviceIntent = Intent(this, ChildMonitorService::class.java)
-        stopService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, ChildMonitorService::class.java)
+            stopService(serviceIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun isBatteryOptimizationIgnored(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-            return powerManager?.isIgnoringBatteryOptimizations(packageName) ?: false
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                return powerManager?.isIgnoringBatteryOptimizations(packageName) ?: false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         return true
     }
 
     private fun requestBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!isBatteryOptimizationIgnored()) {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:$packageName")
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (!isBatteryOptimizationIgnored()) {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
                 }
-                startActivity(intent)
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
