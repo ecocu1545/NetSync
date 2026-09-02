@@ -19,8 +19,8 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
   bool _isSocketConnected = false;
   late String _deviceId;
   
-  // Varsayılan genel sinyalleşme sunucusu (farklı ağlarda çalışabilmesi için)
-  final TextEditingController _serverUrlController = TextEditingController(text: "https://netsync-relay.glitch.me");
+  // Varsayılan olarak aktif yerel Wi-Fi sunucusu
+  final TextEditingController _serverUrlController = TextEditingController(text: "http://192.168.1.110:3000");
   final TextEditingController _deviceIdController = TextEditingController();
 
   WebRTCManager? _childWebRTC;
@@ -31,6 +31,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
     super.initState();
     _generateDeviceId();
     _checkInitialServiceStatus();
+    _setupSignaling(); // Ekran açılır açılmaz sinyalleşmeye bağlan
   }
 
   void _generateDeviceId() {
@@ -47,7 +48,6 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
         _isServiceActive = running;
       });
       if (running) {
-        _setupSignaling();
         _startLocationTracking();
       }
     }
@@ -90,10 +90,8 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
     // 2. Native Foreground Servisi Başlat
     await NativeBridge.startService();
 
-    // 3. Socket.IO ve WebRTC Sinyalleşmesini Başlat
+    // 3. Sinyalleşmeyi doğrula ve GPS Konum Takibini Başlat
     _setupSignaling();
-
-    // 4. GPS Konum Takibini Başlat
     _startLocationTracking();
 
     if (mounted) {
@@ -104,7 +102,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('NetSync Çocuk Koruma Servisi Başarıyla Başlatıldı'),
+        content: Text('NetSync Çocuk Koruma Servisi Devrede!'),
         backgroundColor: Colors.green,
       ),
     );
@@ -112,7 +110,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
 
   void _setupSignaling() {
     final signaling = SignalingManager();
-    _childWebRTC = WebRTCManager();
+    _childWebRTC ??= WebRTCManager();
     signaling.webRTCManager = _childWebRTC;
 
     signaling.onConnectionChange = (connected) {
@@ -125,7 +123,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
 
     // Ebeveynden gelen yayın isteklerini dinle (Kamera veya Ekran)
     signaling.onRequestStream = (requesterId, type) async {
-      print('Ebeveynden gelen yayın isteği işleniyor: $type');
+      print('Ebeveynden gelen yayın isteği: $type');
       await _childWebRTC?.initConnection(requesterId);
 
       if (type == 'screen') {
@@ -167,12 +165,10 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
     await NativeBridge.stopService();
     _locationTimer?.cancel();
     _childWebRTC?.stopTracks();
-    SignalingManager().disconnect();
 
     if (mounted) {
       setState(() {
         _isServiceActive = false;
-        _isSocketConnected = false;
       });
     }
   }
@@ -207,7 +203,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Farklı internet ağlarında (4G/Wi-Fi) olsanız bile otomatik eşleşir.',
+                      'Ebeveyn cihazı bu QR kodu okuttuğu anda cihazlar otomatik eşleşir.',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
@@ -265,15 +261,15 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: _isServiceActive ? Colors.green[50] : Colors.amber[50],
+                color: _isSocketConnected ? Colors.green[50] : Colors.red[50],
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _isServiceActive ? Colors.green[300]! : Colors.amber[300]!),
+                border: Border.all(color: _isSocketConnected ? Colors.green[300]! : Colors.red[300]!),
               ),
               child: Row(
                 children: [
                   Icon(
-                    _isServiceActive ? Icons.verified_user : Icons.shield_outlined,
-                    color: _isServiceActive ? Colors.green[700] : Colors.amber[800],
+                    _isSocketConnected ? Icons.cloud_done : Icons.cloud_off,
+                    color: _isSocketConnected ? Colors.green[700] : Colors.red[700],
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -281,23 +277,23 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _isServiceActive ? 'Koruma ve Yayın Servisi Aktif' : 'Koruma Başlatılmadı',
+                          _isSocketConnected ? 'Sinyalleşme Sunucusu: ÇEVRİMİÇİ' : 'Sinyalleşme Sunucusu: BAĞLANTI YOK',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
-                            color: _isServiceActive ? Colors.green[900] : Colors.amber[900],
+                            color: _isSocketConnected ? Colors.green[900] : Colors.red[900],
                           ),
                         ),
                         Text(
-                          _isSocketConnected ? 'Sinyalleşme Sunucusu: Bağlı' : 'Sinyalleşme Sunucusu: Bekleniyor',
+                          _isServiceActive ? 'Arka Plan Koruma: Aktif' : 'Arka Plan Koruma: Başlatılmadı',
                           style: const TextStyle(fontSize: 11, color: Colors.black54),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    width: 12,
-                    height: 12,
+                    width: 14,
+                    height: 14,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: _isSocketConnected ? Colors.green : Colors.red,
@@ -308,9 +304,10 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Sunucu Ayarları (Genişletilebilir)
+            // Sunucu Ayarları
             ExpansionTile(
-              title: const Text('Gelişmiş Ağ & Sunucu Ayarları', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              initiallyExpanded: false,
+              title: const Text('Sunucu & Bağlantı Ayarları', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -320,34 +317,37 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
                         controller: _serverUrlController,
                         decoration: const InputDecoration(
                           labelText: 'Sinyalleşme Sunucusu URL',
-                          hintText: 'https://netsync-relay.glitch.me veya http://192.168.1.X:3000',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
-                        onChanged: (_) => setState(() {}),
+                        onSubmitted: (_) => _setupSignaling(),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _serverUrlController.text = "https://netsync-relay.glitch.me";
-                                });
-                              },
-                              child: const Text('🌐 İnternet Sunucusu', style: TextStyle(fontSize: 11)),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[50], foregroundColor: Colors.blue[900]),
                               onPressed: () {
                                 setState(() {
                                   _serverUrlController.text = "http://192.168.1.110:3000";
                                 });
+                                _setupSignaling();
                               },
-                              child: const Text('🏠 Yerel Wi-Fi IP', style: TextStyle(fontSize: 11)),
+                              child: const Text('🏠 Wi-Fi (192.168.1.110)', style: TextStyle(fontSize: 11)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[50], foregroundColor: Colors.teal[900]),
+                              onPressed: () {
+                                setState(() {
+                                  _serverUrlController.text = "https://tired-numbers-draw.loca.lt";
+                                });
+                                _setupSignaling();
+                              },
+                              child: const Text('🌐 4G/İnternet Tüneli', style: TextStyle(fontSize: 11)),
                             ),
                           ),
                         ],

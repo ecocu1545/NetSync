@@ -1,6 +1,8 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const localtunnel = require('localtunnel');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -119,10 +121,27 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`=========================================`);
+server.listen(PORT, '0.0.0.0', async () => {
+  console.log(`=======================================================`);
   console.log(`NetSync Sinyalleşme Sunucusu Başlatıldı!`);
-  console.log(`Port: ${PORT}`);
-  console.log(`Tüm ağ arayüzlerinde dinleniyor: 0.0.0.0:${PORT}`);
-  console.log(`=========================================`);
+  console.log(`1. Yerel Wi-Fi IP Adresi : http://192.168.1.110:${PORT}`);
+  console.log(`=======================================================`);
+
+  // İnternet üzerinden erişim için genel tünel oluştur
+  try {
+    const tunnel = await localtunnel({ port: PORT });
+    console.log(`2. TÜM DÜNYADAN (4G/5G) ERİŞİM İÇİN İNTERNET URL:`);
+    console.log(`👉 ${tunnel.url}`);
+    console.log(`=======================================================`);
+
+    try {
+      fs.writeFileSync('public_url.txt', tunnel.url);
+    } catch (_) {}
+
+    tunnel.on('close', () => {
+      console.log('İnternet tüneli kapandı.');
+    });
+  } catch (err) {
+    console.log('İnternet tüneli oluşturulamadı (Sadece yerel Wi-Fi aktif):', err.message);
+  }
 });

@@ -13,7 +13,7 @@ class ParentDashboard extends StatefulWidget {
 
 class _ParentDashboardState extends State<ParentDashboard> {
   final TextEditingController _targetIdController = TextEditingController(text: "NET-8821");
-  final TextEditingController _serverUrlController = TextEditingController(text: "https://netsync-relay.glitch.me");
+  final TextEditingController _serverUrlController = TextEditingController(text: "http://192.168.1.110:3000");
   bool _isConnected = false;
 
   @override
@@ -180,7 +180,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           child: OutlinedButton(
                             onPressed: () {
                               setState(() {
-                                _serverUrlController.text = "https://netsync-relay.glitch.me";
+                                _serverUrlController.text = "https://tired-numbers-draw.loca.lt";
                               });
                               _connectSignaling();
                             },
