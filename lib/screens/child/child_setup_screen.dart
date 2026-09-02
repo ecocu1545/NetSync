@@ -19,8 +19,8 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
   bool _isSocketConnected = false;
   late String _deviceId;
   
-  // Varsayılan olarak aktif yerel Wi-Fi sunucusu
-  final TextEditingController _serverUrlController = TextEditingController(text: "http://192.168.1.110:3000");
+  // Varsayılan kalıcı 7/24 bulut sinyalleşme sunucusu
+  final TextEditingController _serverUrlController = TextEditingController(text: "https://netsync-k68k.onrender.com");
   final TextEditingController _deviceIdController = TextEditingController();
 
   WebRTCManager? _childWebRTC;
@@ -327,6 +327,19 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
                         children: [
                           Expanded(
                             child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[50], foregroundColor: Colors.teal[900]),
+                              onPressed: () {
+                                setState(() {
+                                  _serverUrlController.text = "https://netsync-k68k.onrender.com";
+                                });
+                                _setupSignaling();
+                              },
+                              child: const Text('🌐 7/24 Bulut Sunucu', style: TextStyle(fontSize: 11)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
                               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[50], foregroundColor: Colors.blue[900]),
                               onPressed: () {
                                 setState(() {
@@ -334,20 +347,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
                                 });
                                 _setupSignaling();
                               },
-                              child: const Text('🏠 Wi-Fi (192.168.1.110)', style: TextStyle(fontSize: 11)),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[50], foregroundColor: Colors.teal[900]),
-                              onPressed: () {
-                                setState(() {
-                                  _serverUrlController.text = "https://tired-numbers-draw.loca.lt";
-                                });
-                                _setupSignaling();
-                              },
-                              child: const Text('🌐 4G/İnternet Tüneli', style: TextStyle(fontSize: 11)),
+                              child: const Text('🏠 Yerel Wi-Fi IP', style: TextStyle(fontSize: 11)),
                             ),
                           ),
                         ],

@@ -13,7 +13,7 @@ class ParentDashboard extends StatefulWidget {
 
 class _ParentDashboardState extends State<ParentDashboard> {
   final TextEditingController _targetIdController = TextEditingController(text: "NET-8821");
-  final TextEditingController _serverUrlController = TextEditingController(text: "http://192.168.1.110:3000");
+  final TextEditingController _serverUrlController = TextEditingController(text: "https://netsync-k68k.onrender.com");
   bool _isConnected = false;
 
   @override
@@ -180,11 +180,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           child: OutlinedButton(
                             onPressed: () {
                               setState(() {
-                                _serverUrlController.text = "https://tired-numbers-draw.loca.lt";
+                                _serverUrlController.text = "https://netsync-k68k.onrender.com";
                               });
                               _connectSignaling();
                             },
-                            child: const Text('🌐 İnternet Sunucusu', style: TextStyle(fontSize: 10)),
+                            child: const Text('🌐 7/24 Bulut Sunucu', style: TextStyle(fontSize: 10)),
                           ),
                         ),
                         const SizedBox(width: 8),
