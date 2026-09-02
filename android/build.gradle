@@ -5,34 +5,14 @@ allprojects {
     }
 }
 
-rootProject.buildDir = '../build'
+rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
 subprojects {
-    project.evaluationDependsOn(':app')
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
-}
-
-// Eski eklentilerin flutter.compileSdkVersion aramasını çözen uyumluluk bloğu
-subprojects { subproject ->
-    afterEvaluate {
-        if (subproject.hasProperty("android")) {
-            subproject.android {
-                compileSdkVersion 34
-                buildToolsVersion "34.0.0"
-            }
-        }
-    }
-}
-
-gradle.beforeProject { project ->
-    project.ext.set("flutter", [
-        compileSdkVersion: 34,
-        minSdkVersion: 24,
-        targetSdkVersion: 34
-    ])
 }
