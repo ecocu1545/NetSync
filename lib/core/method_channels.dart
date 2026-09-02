@@ -50,4 +50,14 @@ class NativeBridge {
       return false;
     }
   }
+
+  static Future<Map<String, dynamic>?> getCurrentLocation() async {
+    try {
+      final res = await _channel.invokeMapMethod<String, dynamic>('getCurrentLocation');
+      return res;
+    } on PlatformException catch (e) {
+      print("Native konum alınamadı: '${e.message}'.");
+      return null;
+    }
+  }
 }

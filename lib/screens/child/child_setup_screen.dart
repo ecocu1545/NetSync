@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../core/method_channels.dart';
 import '../../core/signaling_manager.dart';
 import '../../core/webrtc_manager.dart';
@@ -19,7 +18,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
   final TextEditingController _deviceIdController = TextEditingController(text: "NET-8821");
 
   WebRTCManager? _childWebRTC;
-  StreamSubscription<Position>? _positionSubscription;
+  Timer? _locationTimer;
 
   @override
   void initState() {
@@ -38,7 +37,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
 
   @override
   void dispose() {
-    _positionSubscription?.cancel();
+    _locationTimer?.cancel();
     _childWebRTC?.dispose();
     _serverUrlController.dispose();
     _deviceIdController.dispose();
@@ -66,7 +65,7 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
     // 3. Socket.IO ve WebRTC Sinyalleşmesini Başlat
     _setupSignaling();
 
-    // 4. GPS Konum Takibini Başlat
+    // 4. GPS Konum Takibini Başlat (Native Android LocationManager üzerinden)
     _startLocationTracking();
 
     if (mounted) {
@@ -120,29 +119,25 @@ class _ChildSetupScreenState extends State<ChildSetupScreen> {
     );
   }
 
-  void _startLocationTracking() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    final locationSettings = const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
-    );
-
-    _positionSubscription = Geolocator.getPositionStream(locationSettings: locationSettings).listen((Position position) {
-      SignalingManager().sendLocation('parentDeviceId', {
-        'latitude': position.latitude,
-        'longitude': position.longitude,
-        'accuracy': position.accuracy,
-        'speed': position.speed,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
+  void _startLocationTracking() {
+    _locationTimer?.cancel();
+    _locationTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      final loc = await NativeBridge.getCurrentLocation();
+      if (loc != null) {
+        SignalingManager().sendLocation('parentDeviceId', {
+          'latitude': loc['latitude'],
+          'longitude': loc['longitude'],
+          'accuracy': loc['accuracy'],
+          'speed': loc['speed'],
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+      }
     });
   }
 
   Future<void> _stopProtection() async {
     await NativeBridge.stopService();
-    _positionSubscription?.cancel();
+    _locationTimer?.cancel();
     _childWebRTC?.stopTracks();
     SignalingManager().disconnect();
 

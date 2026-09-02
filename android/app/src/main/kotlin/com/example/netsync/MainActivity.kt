@@ -2,6 +2,8 @@ package com.example.netsync
 
 import android.content.Context
 import android.content.Intent
+import android.location.Location
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -37,6 +39,26 @@ class MainActivity: FlutterActivity() {
                 }
                 "isBatteryOptimizationIgnored" -> {
                     result.success(isBatteryOptimizationIgnored())
+                }
+                "getCurrentLocation" -> {
+                    try {
+                        val locationManager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                        val lastGps = try { locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER) } catch (e: SecurityException) { null }
+                        val lastNet = try { locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } catch (e: SecurityException) { null }
+                        val bestLoc: Location? = lastGps ?: lastNet
+                        if (bestLoc != null) {
+                            result.success(mapOf(
+                                "latitude" to bestLoc.latitude,
+                                "longitude" to bestLoc.longitude,
+                                "accuracy" to bestLoc.accuracy.toDouble(),
+                                "speed" to bestLoc.speed.toDouble()
+                            ))
+                        } else {
+                            result.success(null)
+                        }
+                    } catch (e: Exception) {
+                        result.success(null)
+                    }
                 }
                 else -> {
                     result.notImplemented()
