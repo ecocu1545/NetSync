@@ -11,10 +11,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   final MobileScannerController _controller = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
     facing: CameraFacing.back,
-    torchEnabled: false,
   );
 
   bool _isScanned = false;
+  bool _isTorchOn = false;
 
   @override
   void dispose() {
@@ -63,21 +63,21 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: ValueListenableBuilder<TorchState>(
-              valueListenable: _controller.torchState,
-              builder: (context, state, child) {
-                switch (state) {
-                  case TorchState.off:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
-                }
-              },
+            icon: Icon(
+              _isTorchOn ? Icons.flash_on : Icons.flash_off,
+              color: _isTorchOn ? Colors.yellow : Colors.grey,
             ),
-            onPressed: () => _controller.toggleTorch(),
+            tooltip: 'Feneri Aç/Kapat',
+            onPressed: () {
+              setState(() {
+                _isTorchOn = !_isTorchOn;
+              });
+              _controller.toggleTorch();
+            },
           ),
           IconButton(
             icon: const Icon(Icons.cameraswitch),
+            tooltip: 'Kamerayı Değiştir',
             onPressed: () => _controller.switchCamera(),
           ),
         ],
